@@ -33,4 +33,4 @@ sam delete
 
 ### Read More
 
-This repository is associated with the following blog [posted here](https://darryl-ruggles.cloud/)
+This repository is associated with the following blog [posted here](https://darryl-ruggles.cloud/serverless-aws-account-watcher) 
