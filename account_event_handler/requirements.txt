@@ -1,0 +1,4 @@
+boto3
+aws-lambda-powertools[aws-sdk]
+aws_error_utils
+requests

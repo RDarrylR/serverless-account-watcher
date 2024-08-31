@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  serverless-account-watcher
+
+  SAM template to setup notifications for AWS account changes and notify interested parties.
+
+Globals:
+  Function:
+    Timeout: 3
+    MemorySize: 128
+    Tracing: Active
+    LoggingConfig:
+      LogFormat: JSON
+    Environment:
+      Variables:
+        POWERTOOLS_SERVICE_NAME: AccountEventHandler          
+
+Parameters:
+  SlackWebhookURL:
+    Type: String
+    Description: URL to publish slack messages for account changes to. (NOTE Below is an invalid URL - need to change it)
+    Default: https://hooks.slack.com/triggers/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
+
+Resources:
+  AccountEventHandler:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: account_event_handler/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Architectures:
+        - arm64          
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:017000801446:layer:AWSLambdaPowertoolsPythonV2-Arm64:69
+      Environment:
+        Variables:  
+          SNS_TOPIC_ARN: !Ref AccountNotificationSNSTopic
+          SLACK_WEBHOOK_URL: !Ref SlackWebhookURL
+      Policies:          
+        - SNSPublishMessagePolicy: 
+            TopicName: !GetAtt AccountNotificationSNSTopic.TopicName
+      Events:
+        TriggerForS3Events:
+          Type: EventBridgeRule
+          Properties:
+            RuleName: S3EventsRule
+            Pattern:
+              source:
+                - "aws.s3"
+              detail: 
+                eventName:             
+                  - DeleteBucket 
+                  - DeleteBucketPolicy
+                  - PutBucketPolicy
+                eventSource: 
+                  - "s3.amazonaws.com"   
+        TriggerForIAMEvents:
+          Type: EventBridgeRule
+          Properties:
+            RuleName: IAMEventsRule
+            Pattern:
+              source:
+                - "aws.iam"
+              detail: 
+                eventName:    
+                  - CreateAccessKey         
+                  - DeleteAccessKey
+                  - UpdateRole
+                  - DeleteRole
+                eventSource: 
+                  - "iam.amazonaws.com"   
+        TriggerForSigninEvents:
+          Type: EventBridgeRule
+          Properties:
+            RuleName: SigninEventsRule
+            Pattern:
+              source:
+                - "aws.signin"
+              detail: 
+                userIdentity:
+                  type:
+                    - Root
+                eventName:  
+                  - ConsoleLogin
+                eventSource:
+                  - "signin.amazonaws.com"                                 
+  AccountNotificationSNSTopic:
+    Type: "AWS::SNS::Topic"
+    Properties:
+      DisplayName: "Account Notifcation SNS Topic"
+      Subscription:  
+        - Endpoint: account_notifications@example.com
+          Protocol: email          
+      TopicName: "AccountNotificationSNSTopic"
+
+Outputs:
+  SNSTopic:
+    Description: SNS Topic that will receive account notifications
+    Value: AccountNotificationSNSTopic
+  LambaFunctionARN:
+    Description: ARN of the Lambda function that will process account notifications
+    Value: !GetAtt AccountEventHandler.Arn
